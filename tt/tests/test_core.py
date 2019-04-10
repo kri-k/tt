@@ -77,3 +77,25 @@ class TestTT:
         tensor = utils.rand_tensor(*shape)
         assert check_equal(
             np.sum(tensor), TT.from_tensor(tensor).sum_elements())
+
+    @pytest.mark.parametrize(('shape_tt', 'shape_arr'), [
+        ((2, 2), (2, 2)), ((2, 2), (2, 1)),
+        ((5, 2), (2, 2)), ((5, 2), (2, 1)),
+        ((2, 5), (5, 2)), ((2, 5), (5, 1)),
+        ((3, 2, 5), (5, 2)), ((3, 2, 5), (5, 1)),
+    ])
+    def test_matmul_ndarray(self, shape_tt, shape_arr):
+        t = utils.rand_tensor(*shape_tt)
+        m = utils.rand_tensor(*shape_arr)
+
+        tt = TT.from_tensor(t)
+        tt @= m
+
+        target_shape = (shape_tt[:-1] +
+                        ((shape_arr[-1],) if shape_arr[-1] > 1 else tuple()))
+        assert tt.shape == target_shape
+
+        t = t @ m
+        if shape_arr[-1] == 1:
+            t = t[..., 0]
+        assert check_equal(tt.to_tensor(), t)

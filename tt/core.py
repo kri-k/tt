@@ -11,11 +11,11 @@ class TT:
         if shape is None:
             shape = [c.shape[1] for c in cores]
             shape[0] = cores[0].shape[0]
-        self._shape = tuple(shape)
+        self._shape = list(shape)
 
     @property
     def shape(self):
-        return self._shape
+        return tuple(self._shape)
 
     @property
     def size(self):
@@ -100,10 +100,10 @@ class TT:
         result *= number
         return result
 
-    def __idiv__(self, number):
+    def __itruediv__(self, number):
         self *= 1.0 / number
 
-    def __div__(self, number):
+    def __truediv__(self, number):
         return self * (1 / number)
 
     def __add__(self, number):
@@ -146,3 +146,31 @@ class TT:
             val = np.sum(c, axis=1)
             s = s @ val
         return s
+
+    def _imatmul_tt(self, other):
+        raise NotImplementedError('todo')
+
+    def _imatmul_ndarray(self, other):
+        if other.ndim > 2:
+            raise ValueError(
+                'Matmul of TT tensor and ndarray '
+                'with ndim > 2 is not supported')
+
+        if other.ndim == 1:
+            raise NotImplementedError('todo')
+
+        c = self._cores.pop()
+        c = c @ other
+        if c.shape[-1] == 1:
+            c = (self._cores.pop() @ c)[..., 0]
+            self._shape.pop()
+        else:
+            self._shape[-1] = c.shape[-1]
+        self._cores.append(c)
+
+    def __imatmul__(self, other):
+        if isinstance(other, type(self)):
+            self._imatmul_tt(other)
+        else:
+            self._imatmul_ndarray(other)
+        return self
