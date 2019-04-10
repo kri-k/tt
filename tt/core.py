@@ -148,7 +148,12 @@ class TT:
         return s
 
     def _imatmul_tt(self, other):
-        raise NotImplementedError('todo')
+        c = self._cores.pop() @ other._cores[0]
+        self._cores.append(self._cores.pop() @ c)
+        self._shape.pop()
+        self._shape += other._shape[1:]
+        for i in range(1, len(other._cores)):
+            self._cores.append(np.copy(other._cores[i]))
 
     def _imatmul_ndarray(self, other):
         if other.ndim > 2:
@@ -157,7 +162,7 @@ class TT:
                 'with ndim > 2 is not supported')
 
         if other.ndim == 1:
-            raise NotImplementedError('todo')
+            other = other[:, np.newaxis]
 
         c = self._cores.pop()
         c = c @ other

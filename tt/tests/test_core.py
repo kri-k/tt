@@ -79,10 +79,11 @@ class TestTT:
             np.sum(tensor), TT.from_tensor(tensor).sum_elements())
 
     @pytest.mark.parametrize(('shape_tt', 'shape_arr'), [
-        ((2, 2), (2, 2)), ((2, 2), (2, 1)),
-        ((5, 2), (2, 2)), ((5, 2), (2, 1)),
-        ((2, 5), (5, 2)), ((2, 5), (5, 1)),
-        ((3, 2, 5), (5, 2)), ((3, 2, 5), (5, 1)),
+        [(2, 2), (2,)], [(4, 2, 3), (3,)],
+        [(2, 2), (2, 2)], [(2, 2), (2, 1)],
+        [(5, 2), (2, 2)], [(5, 2), (2, 1)],
+        [(2, 5), (5, 2)], [(2, 5), (5, 1)],
+        [(3, 2, 5), (5, 2)], [(3, 2, 5), (5, 1)],
     ])
     def test_matmul_ndarray(self, shape_tt, shape_arr):
         t = utils.rand_tensor(*shape_tt)
@@ -91,11 +92,30 @@ class TestTT:
         tt = TT.from_tensor(t)
         tt @= m
 
-        target_shape = (shape_tt[:-1] +
-                        ((shape_arr[-1],) if shape_arr[-1] > 1 else tuple()))
+        target_shape = shape_tt[:-1]
+        if shape_arr[-1] > 1 and len(shape_arr) > 1:
+            target_shape = target_shape + (shape_arr[-1],)
         assert tt.shape == target_shape
 
         t = t @ m
         if shape_arr[-1] == 1:
             t = t[..., 0]
         assert check_equal(tt.to_tensor(), t)
+
+    @pytest.mark.parametrize(('shape_tt_1', 'shape_tt_2'), [
+        [(2, 2), (2, 2)], [(2, 2), (2, 2, 2)], [(2, 2, 2), (2, 2)],
+        [(2, 3, 4), (4, 3, 2)], [(3, 4, 2, 5), (5, 4, 2, 3)],
+    ])
+    def test_matmul_tt(self, shape_tt_1, shape_tt_2):
+        t_1 = utils.rand_tensor(*shape_tt_1)
+        t_2 = utils.rand_tensor(*shape_tt_2)
+
+        tt_1 = TT.from_tensor(t_1)
+        tt_2 = TT.from_tensor(t_2)
+        tt_1 @= tt_2
+
+        target_shape = shape_tt_1[:-1] + shape_tt_2[1:]
+        assert tt_1.shape == target_shape
+
+        t_1 = np.tensordot(t_1, t_2, axes=([-1], [0]))
+        assert check_equal(tt_1.to_tensor(), t_1)
