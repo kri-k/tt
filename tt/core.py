@@ -179,3 +179,21 @@ class TT:
         else:
             self._imatmul_ndarray(other)
         return self
+
+
+def optimize_last_dim(cores, last_dim_core_id, is_better):
+    v = cores[-1][:, last_dim_core_id]
+    cores = cores[:-1]
+    n = len(cores)
+
+    pref = [cores[0][0, :]]
+    for i in range(1, n):
+        pref.append(pref[-1] @ cores[i][:, 0, :])
+    res_0 = float(pref[-1] @ v)
+
+    pref = [cores[0][1, :]]
+    for i in range(1, n):
+        pref.append(pref[-1] @ cores[i][:, 1, :])
+    res_1 = float(pref[-1] @ v)
+
+    return res_0, res_1
