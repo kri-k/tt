@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from tt.core import TT
+from tt import TT
 from tt import utils
 
 

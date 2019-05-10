@@ -36,3 +36,8 @@ def _svd(matrix, eps=1e-6):
 def svd_decomposition(matrix, eps=1e-6):
     u, s, v = _svd(matrix, eps)
     return u, np.diag(s) @ v
+
+
+def singular_amount(matrix):
+    _, s, _ = _svd(matrix)
+    return np.prod([i**2 for i in s])

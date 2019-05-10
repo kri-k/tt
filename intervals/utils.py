@@ -59,3 +59,11 @@ def imatrix_to_tensor(imatrix):
     for id, m in enumerate(iter_all_instances(imatrix)):
         t[(slice(None), *np.unravel_index(id, s), slice(None))] = m
     return t
+
+
+def norm(array):
+    if array.dtype.type is np.object_:
+        # consider this case as interval array
+        return sum(i.width() for i in array.flat)
+    else:
+        return np.linalg.norm(array, ord=1)

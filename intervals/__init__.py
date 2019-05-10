@@ -5,8 +5,8 @@ class Interval:
     def __init__(self, left, right):
         if left > right:
             left, right = right, left
-        self.l = left
-        self.r = right
+        self.l = round(left, 5)
+        self.r = round(right, 5)
 
     @property
     def interval(self):
@@ -74,12 +74,12 @@ class Interval:
 
     def __itruediv__(self, other):
         if isinstance(other, Interval):
-            a, b = other.r, other.l
+            a, b = other.l, other.r
         else:
             a = b = other
         if a <= 0 <= b:
-            raise ZeroDivisionError('Interval containing zero')
-        i = type(self)(1.0 / a, 1.0 / b)
+            raise ZeroDivisionError('Interval containing zero', (a, b))
+        i = type(self)(1.0 / b, 1.0 / a)
         self *= i
         return self
 
@@ -88,7 +88,7 @@ class Interval:
         res /= other
         return res
 
-    def __rtruediv(self, other):
+    def __rtruediv__(self, other):
         return self.__truediv__(other)
 
     def __iand__(self, other):
@@ -112,6 +112,23 @@ class Interval:
     def __rand__(self, other):
         return self.__and__(other)
 
+    def __abs__(self):
+        if self.l * self.l < 0:
+            raise RuntimeError('Abs of interval containing zero')
+
+        if self.r < 0:
+            r, l = self.interval
+        else:
+            l, r = self.interval
+
+        return type(self)(l, r)
+
     def get(self, n):
         assert n in (0, 1)
         return self.r if n else self.l
+
+    def width(self):
+        return self.r - self.l
+
+    def norm(self):
+        return abs(self.l) + abs(self.r)
