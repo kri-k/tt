@@ -66,6 +66,15 @@ class TT:
             cores.append(np.ones((1, shape[-1])))
         return cls(cores, shape)
 
+    @classmethod
+    def zeros(cls, *shape):
+        cores = [np.zeros((shape[0], 1))]
+        for i in range(1, len(shape) - 1):
+            cores.append(np.zeros((1, shape[i], 1)))
+        if len(shape) > 1:
+            cores.append(np.zeros((1, shape[-1])))
+        return cls(cores, shape)
+
     def to_tensor(self):
         cores_iterator = iter(self._cores)
         tensor = next(cores_iterator)
@@ -209,6 +218,9 @@ class TT:
         tensor `t = stack(a, b)` will have size (i0 + 1, i1, i2, ..., in)
         where `t[i] == a[i]` for 0 <= i < i0 and `t[i0] == b`
         """
+        if a is None or b is None:
+            return a or b
+
         if a.ndim != b.ndim and a.ndim != b.ndim + 1:
             raise ValueError(
                 'Number of dimensions mismatch '
