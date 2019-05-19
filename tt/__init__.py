@@ -24,7 +24,7 @@ class TT:
         return sum(c.size for c in self._cores)
 
     @classmethod
-    def from_tensor(cls, tensor):
+    def tt_svd(cls, tensor):
         decomposition = []
 
         t = tensor

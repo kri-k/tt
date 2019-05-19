@@ -174,7 +174,7 @@ if __name__ == '__main__':
     print(np.dot(np.dot(m, m), m))
     print(iutils.to_iarray(a @ a @ a, b @ b @ b))
 
-    t = TT.from_tensor(iutils.imatrix_to_tensor(m))
+    t = TT.tt_svd(iutils.imatrix_to_tensor(m))
     print(optimize_tt_imatrix(t, 3))
 
     ##########################################################

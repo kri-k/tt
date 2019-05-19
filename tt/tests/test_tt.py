@@ -25,13 +25,13 @@ class TestTT:
     @pytest.mark.parametrize('shape', TESTED_SHAPES)
     def test_naive_transformation(self, shape):
         tensor = utils.rand_tensor(*shape)
-        tt_cores = TT.from_tensor(tensor)
+        tt_cores = TT.tt_svd(tensor)
         restored_tensor = tt_cores.to_tensor()
         assert tt_cores.shape == shape
         assert check_equal(tensor, restored_tensor)
 
         tensor = utils.ones_tensor(*shape)
-        tt_cores = TT.from_tensor(tensor)
+        tt_cores = TT.tt_svd(tensor)
         restored_tensor = tt_cores.to_tensor()
         assert tt_cores.shape == shape
         assert check_equal(tensor, restored_tensor)
@@ -47,7 +47,7 @@ class TestTT:
     def test_mul(self, shape, multiplier):
         for k in (multiplier, -multiplier):
             tensor = utils.rand_tensor(*shape)
-            tt_cores_1 = TT.from_tensor(tensor)
+            tt_cores_1 = TT.tt_svd(tensor)
             tensor *= k
             tt_cores_2 = tt_cores_1 * k
             tt_cores_1 *= k
@@ -57,7 +57,7 @@ class TestTT:
     @pytest.mark.parametrize('shape', TESTED_SHAPES)
     def test_sum(self, shape):
         t = [utils.rand_tensor(*shape) for _ in range(3)]
-        tt = [TT.from_tensor(tensor) for tensor in t]
+        tt = [TT.tt_svd(tensor) for tensor in t]
         assert check_equal(
             TT.sum(TT.sum(tt[0], tt[1]), tt[2]).to_tensor(),
             sum(t))
@@ -68,7 +68,7 @@ class TestTT:
     def test_add(self, shape, summand):
         for k in (summand, -summand):
             tensor = utils.rand_tensor(*shape)
-            tt_cores = TT.from_tensor(tensor) + k
+            tt_cores = TT.tt_svd(tensor) + k
             tensor += k
             assert check_equal(tensor, tt_cores.to_tensor())
 
@@ -76,7 +76,7 @@ class TestTT:
     def test_sum_elements(self, shape):
         tensor = utils.rand_tensor(*shape)
         assert check_equal(
-            np.sum(tensor), TT.from_tensor(tensor).sum_elements())
+            np.sum(tensor), TT.tt_svd(tensor).sum_elements())
 
     @pytest.mark.parametrize(('shape_tt', 'shape_arr'), [
         [(2, 2), (2,)], [(4, 2, 3), (3,)],
@@ -89,7 +89,7 @@ class TestTT:
         t = utils.rand_tensor(*shape_tt)
         m = utils.rand_tensor(*shape_arr)
 
-        tt = TT.from_tensor(t)
+        tt = TT.tt_svd(t)
         tt @= m
 
         target_shape = shape_tt[:-1]
@@ -110,8 +110,8 @@ class TestTT:
         t_1 = utils.rand_tensor(*shape_tt_1)
         t_2 = utils.rand_tensor(*shape_tt_2)
 
-        tt_1 = TT.from_tensor(t_1)
-        tt_2 = TT.from_tensor(t_2)
+        tt_1 = TT.tt_svd(t_1)
+        tt_2 = TT.tt_svd(t_2)
         tt_1 @= tt_2
 
         target_shape = shape_tt_1[:-1] + shape_tt_2[1:]
@@ -125,6 +125,6 @@ class TestTT:
         a = utils.rand_tensor(*shape)
         b = utils.rand_tensor(*shape)
         t = TT.stack(
-            TT.from_tensor(a), TT.from_tensor(b)
+            TT.tt_svd(a), TT.tt_svd(b)
         ).to_tensor()
         assert check_equal(t, np.array([a, b]))
