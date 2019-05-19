@@ -20,6 +20,10 @@ class TT:
         return tuple(self._shape)
 
     @property
+    def ndim(self):
+        return len(self._shape)
+
+    @property
     def size(self):
         return sum(c.size for c in self._cores)
 
@@ -132,6 +136,9 @@ class TT:
 
     @classmethod
     def sum(cls, a, b):
+        if a.shape != b.shape:
+            raise ValueError('Shape mismatch', a.shape, b.shape)
+
         new_cores = [np.concatenate((a._cores[0], b._cores[0]), axis=1)]
         for i in range(1, len(a) - 1):
             new_cores.append(cls._union_cores(a._cores[i], b._cores[i]))
@@ -190,7 +197,27 @@ class TT:
 
     @classmethod
     def stack(cls, a, b):
-        if a.shape != b.shape:
+        """
+        Stack tensor `b` in tensor `a`
+
+        If tensors `a` and `b` have sizes (i1, i2, ..., in) then
+        tensor `t = stack(a, b)` will have size (2, i1, i2, ..., in)
+        where `t[0] == a` and `t[1] == b`
+
+        If tensor `a` have size (i0, i1, i2, ..., in) and
+        tensor `b` have size (i1, i2, ..., in) then
+        tensor `t = stack(a, b)` will have size (i0 + 1, i1, i2, ..., in)
+        where `t[i] == a[i]` for 0 <= i < i0 and `t[i0] == b`
+        """
+        if a.ndim != b.ndim and a.ndim != b.ndim + 1:
+            raise ValueError(
+                'Number of dimensions mismatch '
+                '(should be equal or n + 1 and n)',
+                a.ndim, b.ndim)
+
+        shift = int(a.ndim != b.ndim)
+
+        if a.shape[shift:] != b.shape:
             raise ValueError('Shape mismatch', a.shape, b.shape)
 
         def f(core):
@@ -198,13 +225,19 @@ class TT:
                 return core.reshape((1, *core.shape))
             return core
 
-        new_cores = [np.eye(2)]
-        new_cores.extend(
-            cls._union_cores(f(a._cores[i]), f(b._cores[i]))
-            for i in range(len(a._cores) - 1)
-        )
-        if len(a._cores) > 1:
-            new_cores.append(np.concatenate((a._cores[-1], b._cores[-1])))
+        if a.ndim == b.ndim:
+            new_cores = [np.eye(2)]
+            new_shape = (2, *a.shape)
+        else:
+            new_cores = [np.pad(a._cores[0], ((0, 1), (0, 1)), 'constant')]
+            new_cores[0][-1, -1] = 1.0
+            new_shape = list(a._shape)
+            new_shape[0] += 1
 
-        assert new_cores[1].shape[0] == 2
-        return cls(new_cores, shape=a.shape)._round()
+        new_cores.extend(
+            cls._union_cores(f(a._cores[i + shift]), f(b._cores[i]))
+            for i in range(len(b._cores) - 1)
+        )
+        new_cores.append(np.concatenate((a._cores[-1], b._cores[-1])))
+
+        return cls(new_cores, new_shape)._round()

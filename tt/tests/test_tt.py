@@ -7,10 +7,13 @@ from tt import utils
 
 
 TESTED_SHAPES = [
+    (1, 1),
     (1, 8),
     (8, 1),
+    (2, 2),
     (4, 5),
     (2, 2, 2),
+    (4, 1, 5),
     (2, 2, 2, 2),
     (2, 3, 4, 5),
     (2, 4, 3, 2, 5, 3),
@@ -124,7 +127,14 @@ class TestTT:
     def test_stack(self, shape):
         a = utils.rand_tensor(*shape)
         b = utils.rand_tensor(*shape)
-        t = TT.stack(
-            TT.tt_svd(a), TT.tt_svd(b)
-        ).to_tensor()
-        assert check_equal(t, np.array([a, b]))
+        t = TT.stack(TT.tt_svd(a), TT.tt_svd(b))
+        assert t.shape == (2, *shape)
+        assert check_equal(t.to_tensor(), np.array([a, b]))
+
+        for additional_dimension in (1, 2, 5):
+            a = utils.rand_tensor(*(additional_dimension, *shape))
+            b = utils.rand_tensor(*shape)
+            t = TT.stack(TT.tt_svd(a), TT.tt_svd(b))
+            assert t.shape == (additional_dimension + 1, *shape)
+            assert check_equal(
+                t.to_tensor(), np.concatenate((a, b[np.newaxis])))
