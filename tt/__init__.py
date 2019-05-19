@@ -92,6 +92,22 @@ class TT:
 
         return self
 
+    @staticmethod
+    def _union_cores(a, b):
+        """
+        Create from cores (a1, n, a2) and (b1, n, b2)
+        new core (a1 + b1, n, a2 + b2)
+        Core `a` in upper left corner, `b` in bottom right.
+        Other elements are zeroes.
+        """
+        part1 = np.concatenate(
+            (a, np.zeros(a.shape[:2] + (b.shape[2],))),
+            axis=2)
+        part2 = np.concatenate(
+            (np.zeros(b.shape[:2] + (a.shape[2],)), b),
+            axis=2)
+        return np.concatenate((part1, part2))
+
     def __imul__(self, number):
         self._cores[int(number) % len(self._cores)] *= number
         return self
@@ -116,24 +132,9 @@ class TT:
 
     @classmethod
     def sum(cls, a, b):
-        def _union_cores(a, b):
-            """
-            Create from cores (a1, n, a2) and (b1, n, b2)
-            new core (a1 + b1, n, a2 + b2)
-            Core `a` in upper left corner, `b` in bottom right.
-            Other elements are zeroes.
-            """
-            part1 = np.concatenate(
-                (a, np.zeros(a.shape[:2] + (b.shape[2],))),
-                axis=2)
-            part2 = np.concatenate(
-                (np.zeros(b.shape[:2] + (a.shape[2],)), b),
-                axis=2)
-            return np.concatenate((part1, part2))
-
         new_cores = [np.concatenate((a._cores[0], b._cores[0]), axis=1)]
         for i in range(1, len(a) - 1):
-            new_cores.append(_union_cores(a._cores[i], b._cores[i]))
+            new_cores.append(cls._union_cores(a._cores[i], b._cores[i]))
         if len(a) > 1:
             new_cores.append(np.concatenate((a._cores[-1], b._cores[-1])))
         return cls(new_cores, shape=a.shape)._round()
@@ -186,3 +187,24 @@ class TT:
         t = type(self)(self._cores, self.shape)
         t @= other
         return t
+
+    @classmethod
+    def stack(cls, a, b):
+        if a.shape != b.shape:
+            raise ValueError('Shape mismatch', a.shape, b.shape)
+
+        def f(core):
+            if core.ndim == 2:
+                return core.reshape((1, *core.shape))
+            return core
+
+        new_cores = [np.eye(2)]
+        new_cores.extend(
+            cls._union_cores(f(a._cores[i]), f(b._cores[i]))
+            for i in range(len(a._cores) - 1)
+        )
+        if len(a._cores) > 1:
+            new_cores.append(np.concatenate((a._cores[-1], b._cores[-1])))
+
+        assert new_cores[1].shape[0] == 2
+        return cls(new_cores, shape=a.shape)._round()

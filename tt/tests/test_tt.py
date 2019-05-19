@@ -119,3 +119,12 @@ class TestTT:
 
         t_1 = np.tensordot(t_1, t_2, axes=([-1], [0]))
         assert check_equal(tt_1.to_tensor(), t_1)
+
+    @pytest.mark.parametrize('shape', TESTED_SHAPES)
+    def test_stack(self, shape):
+        a = utils.rand_tensor(*shape)
+        b = utils.rand_tensor(*shape)
+        t = TT.stack(
+            TT.from_tensor(a), TT.from_tensor(b)
+        ).to_tensor()
+        assert check_equal(t, np.array([a, b]))

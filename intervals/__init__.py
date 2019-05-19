@@ -5,30 +5,30 @@ class Interval:
     def __init__(self, left, right):
         if left > right:
             left, right = right, left
-        self.l = round(left, 5)
-        self.r = round(right, 5)
+        self.left = round(left, 5)
+        self.right = round(right, 5)
 
     @property
     def interval(self):
-        return (self.l, self.r)
+        return (self.left, self.right)
 
     def __repr__(self):
-        return 'I({}, {})'.format(self.l, self.r)
+        return 'I({}, {})'.format(self.left, self.right)
 
     def __str__(self):
         return self.__repr__()
 
     def __iadd__(self, other):
         if isinstance(other, Interval):
-            self.l += other.l
-            self.r += other.r
+            self.left += other.left
+            self.right += other.right
         else:
-            self.l += other
-            self.r += other
+            self.left += other
+            self.right += other
         return self
 
     def __add__(self, other):
-        res = type(self)(self.l, self.r)
+        res = type(self)(self.left, self.right)
         res += other
         return res
 
@@ -37,15 +37,15 @@ class Interval:
 
     def __isub__(self, other):
         if isinstance(other, Interval):
-            self.l -= other.r
-            self.r -= other.l
+            self.left -= other.right
+            self.right -= other.left
         else:
-            self.l -= other
-            self.r -= other
+            self.left -= other
+            self.right -= other
         return self
 
     def __sub__(self, other):
-        res = type(self)(self.l, self.r)
+        res = type(self)(self.left, self.right)
         res -= other
         return res
 
@@ -55,17 +55,17 @@ class Interval:
     def __imul__(self, other):
         if isinstance(other, Interval):
             t = sorted(i * j for i in self.interval for j in other.interval)
-            self.l = t[0]
-            self.r = t[-1]
+            self.left = t[0]
+            self.right = t[-1]
         else:
-            self.l *= other
-            self.r *= other
+            self.left *= other
+            self.right *= other
             if other < 0:
-                self.r, self.l = self.interval
+                self.right, self.left = self.interval
         return self
 
     def __mul__(self, other):
-        res = type(self)(self.l, self.r)
+        res = type(self)(self.left, self.right)
         res *= other
         return res
 
@@ -74,7 +74,7 @@ class Interval:
 
     def __itruediv__(self, other):
         if isinstance(other, Interval):
-            a, b = other.l, other.r
+            a, b = other.left, other.right
         else:
             a = b = other
         if a <= 0 <= b:
@@ -84,7 +84,7 @@ class Interval:
         return self
 
     def __truediv__(self, other):
-        res = type(self)(self.l, self.r)
+        res = type(self)(self.left, self.right)
         res /= other
         return res
 
@@ -93,19 +93,19 @@ class Interval:
 
     def __iand__(self, other):
         if isinstance(self, Interval):
-            a = max(self.l, other.l)
-            b = min(self.r, other.r)
+            a = max(self.left, other.left)
+            b = min(self.right, other.right)
         else:
-            a = max(self.l, other)
-            b = min(self.r, other)
+            a = max(self.left, other)
+            b = min(self.right, other)
         if a > b:
             raise ValueError('Empty Interval')
-        self.l = a
-        self.r = b
+        self.left = a
+        self.right = b
         return self
 
     def __and__(self, other):
-        res = type(self)(self.l, self.r)
+        res = type(self)(self.left, self.right)
         res &= other
         return res
 
@@ -113,22 +113,22 @@ class Interval:
         return self.__and__(other)
 
     def __abs__(self):
-        if self.l * self.l < 0:
+        if self.left * self.left < 0:
             raise RuntimeError('Abs of interval containing zero')
 
-        if self.r < 0:
-            r, l = self.interval
+        if self.right < 0:
+            right, left = self.interval
         else:
-            l, r = self.interval
+            left, right = self.interval
 
-        return type(self)(l, r)
+        return type(self)(left, right)
 
     def get(self, n):
         assert n in (0, 1)
-        return self.r if n else self.l
+        return self.right if n else self.left
 
     def width(self):
-        return self.r - self.l
+        return self.right - self.left
 
     def norm(self):
-        return abs(self.l) + abs(self.r)
+        return abs(self.left) + abs(self.right)
