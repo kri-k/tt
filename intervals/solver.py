@@ -1,13 +1,15 @@
 # *-* coding: utf-8 -*-
 import copy
+import functools
 import itertools
 
 import numpy as np
 import numpy.linalg as la
 
 import intervals.utils as iutils
-from tt import TT
-import tt.utils as tt_utils
+from ttlib import TT
+from ttlib import ttcross
+import ttlib.utils as tt_utils
 
 
 def bruteforce_solver(func, vars, var_types='', default_type='i'):
@@ -34,6 +36,46 @@ def bruteforce_solver(func, vars, var_types='', default_type='i'):
     return iutils.to_iarray(low_bound, up_bound)
 
 
+def get_iarray_instance(iarray, ids):
+    res = np.ones(iarray.shape)
+    i = 0
+    it = np.nditer(iarray, flags=['multi_index', 'refs_ok'])
+    while not it.finished:
+        val = iarray[it.multi_index]
+        if ids[i]:
+            val = val.right
+        else:
+            val = val.left
+        res[it.multi_index] = val
+        i += 1
+        it.iternext()
+    return res
+
+
+_CACHE_INFO = None
+
+
+def get_blackbox_linear_solver(imatrix, ivec, fixed_ids, variety_shape):
+    @functools.lru_cache(None)
+    def _solve(imtrx_id, ivec_id):
+        matrix = get_iarray_instance(imatrix, imtrx_id)
+        vector = get_iarray_instance(ivec, ivec_id)
+        x = la.solve(matrix, vector)
+        return x
+
+    @ttcross.blackbox_tensor(variety_shape)
+    def _f(*ids):
+        ids = fixed_ids + ids
+        imtrx_id = ids[:imatrix.size]
+        ivec_id = ids[imatrix.size:-1]
+        id = ids[-1]
+        global _CACHE_INFO
+        _CACHE_INFO = _solve.cache_info()
+        return _solve(imtrx_id, ivec_id)[id]
+
+    return _f
+
+
 class LinearSystemSolver:
     @staticmethod
     def bruteforce(matrix, vec, types='ir'):
@@ -41,9 +83,10 @@ class LinearSystemSolver:
             lambda m, v: la.solve(m, v),
             [matrix, vec], types)
 
-    def gauss(miatrix, vec):
-        matrix = copy.deepcopy(m)
-        vec = copy.deepcopy(vec)
+    @staticmethod
+    def gauss(imatrix, ivec):
+        matrix = copy.deepcopy(imatrix)
+        vec = copy.deepcopy(ivec)
         n = matrix.shape[0]
         for j in range(n - 1):
             for i in range(j + 1, n):
@@ -60,6 +103,33 @@ class LinearSystemSolver:
             x[i] /= matrix[i, i]
         return x
 
+    @staticmethod
+    def ttcross(imatrix, ivec):
+        assert imatrix.ndim == 2
+        assert ivec.ndim == 1
+        shape = [2] * (imatrix.size + ivec.size)
+        shape.append(ivec.size)
+
+        f = get_blackbox_linear_solver(imatrix, ivec, (), shape)
+        tt = ttcross.ttcross(f, shape)
+        del f
+        
+        x = []
+        for i in range(ivec.size):
+            c = copy.deepcopy(tt._cores)
+            cn = c.pop(-1)
+            c[-1] = np.tensordot(c[-1], cn[..., i, None], axes=([-1], [0]))
+            c[-1] = c[-1].reshape(c[-1].shape[:-1])
+            x.append(iutils.optimize_interval(TT(c)))
+        return np.array(x)
+
+        # t = tt.to_tensor()
+        # print('{}/{}'.format(tt.size, t.size))
+        # for i in range(imatrix.shape[0]):
+        #     tmp = t[..., i]
+
+
+    @staticmethod
     def jacobi(matrix, vec, x0):
         n = matrix.shape[0]
         m = copy.deepcopy(matrix)
@@ -76,106 +146,43 @@ class LinearSystemSolver:
         x_cur = copy.deepcopy(x0)
         for _ in range(10):
             x_next = np.dot(m, x_cur) + v
-            print(x_cur)
-            print(x_next)
-            print('=======')
+            # print(x_cur)
+            # print(x_next)
+            # print('=======')
             for i in range(n):
                 x_cur[i] &= x_next[i]
         return x_cur
-
-    def gauss_seidel(matrix, vec, x_start):
-        pass
-
-
-class EigensSolver:
-    @staticmethod
-    def bruteforce_eigvals(matrix, type_='i'):
-        return bruteforce_solver(
-            lambda m: max(la.eigvals(m).real),
-            [matrix], type_)
-
-    def _max_eigenvalue(matrix, iter_num):
-        v2, v1 = np.ones(matrix.shape[0]), None
-        for _ in range(iter_num):
-            v2 /= iutils.norm(v2)
-            v2, v1 = np.dot(matrix, v2), v2
-        return v2[0] / v1[0]
-
-    @classmethod
-    def bruteforce_iter(cls, matrix, type_='i', iter_num=100):
-        return bruteforce_solver(
-            lambda m: cls._max_eigenvalue(m, iter_num=iter_num),
-            [matrix], type_)
-
-    @staticmethod
-    def interval_solver(imatrix):
-        pass
-
-
-def optimize_tt_imatrix(tt_imatrix, pow=1):
-    shape = tt_imatrix.shape
-    if shape[0] != shape[-1] and set(shape[1:-1]) != {2}:
-        raise RuntimeError('Wrong tt imatrix shape', shape)
-
-    cores = tt_imatrix._cores
-    n = len(cores)
-    assert n > 1
-
-    upper = cores[0]
-    lower = cores[0]
-    for i in range(1, n - 1):
-        new_lower = lower @ cores[i][:, 0, :]
-        new_lower_val = tt_utils.singular_amount(new_lower)
-
-        new_upper = upper @ cores[i][:, 0, :]
-        new_upper_val = tt_utils.singular_amount(new_upper)
-
-        for j in range(1, cores[i].shape[1]):
-            m = lower @ cores[i][:, j, :]
-            m_val = tt_utils.singular_amount(m)
-            if m_val < new_lower_val:
-                new_lower = m
-                new_lower_val = m_val
-
-            m = upper @ cores[i][:, j, :]
-            m_val = tt_utils.singular_amount(m)
-            if m_val > new_upper_val:
-                new_upper = m
-                new_upper_val = m_val
-
-        lower = new_lower
-        upper = new_upper
-
-    lower = lower @ cores[-1]
-    upper = upper @ cores[-1]
-
-    return iutils.to_iarray(
-        np.around(la.matrix_power(lower, pow), 5),
-        np.around(la.matrix_power(upper, pow), 5))
 
 
 if __name__ == '__main__':
     np.random.seed(0)
 
-    a = np.array([
-        [1, 0, -3],
-        [1, -1, 0],
-        [0, 0, 8],
-    ])
-    b = np.array([
-        [1, 1, 0],
-        [1, -1, 0],
-        [5, 2, 9],
-    ])
-    m = iutils.to_iarray(a, b)
+    # a = np.array([
+    #     [1, 0, -3],
+    #     [1, -1, 0],
+    #     [0, 0, 8],
+    # ])
+    # b = np.array([
+    #     [1, 1, 0],
+    #     [1, -1, 0],
+    #     [5, 2, 9],
+    # ])
+    # m = iutils.to_iarray(a, b)
+    # # m = iutils.rand_iarray(2, 2)
 
-    mm = bruteforce_solver(lambda a: a @ a @ a, [m])
-    print(mm)
-    print(np.dot(np.dot(m, m), m))
-    print(iutils.to_iarray(a @ a @ a, b @ b @ b))
+    # import tt
 
-    t = TT.tt_svd(iutils.imatrix_to_tensor(m))
-    print(optimize_tt_imatrix(t, 3))
+    # print(m)
+    # t = iutils.imatrix_to_tensor(m)
+    # s = t.shape
+    # f = ttcross.tensor_func(t)
+    # f = ttcross.blackbox_tensor(s)(f)
+    # tt = ttcross.ttcross(f, s)
+    # tt = ttcross._translate_to_ttvec(tt)
+
+    # # tt = tt.rand([3, 4, 5, 4, 3], 5, 3)
+    # print(type(tt), tt)
+    # print(iutils.min_tens(tt, rmax=10, nswp=30))
 
     ##########################################################
 
@@ -185,18 +192,23 @@ if __name__ == '__main__':
     # print('------')
     # print(bruteforce_solver(lambda m: m @ m @ m, [m], 'i'))
 
-    # m = iutils.to_iarray(np.array([
-    #     [[3.3, 3.3], [0, 2], [0, 2]],
-    #     [[0, 2], [3.3, 3.3], [0, 2]],
-    #     [[0, 2], [0, 2], [3.3, 3.3]],
-    # ]))
-    # b = iutils.to_iarray(np.array([
-    #     [-1, 2],
-    #     [-1, 2],
-    #     [-1, 2],
-    # ]))
+    m = iutils.to_iarray(np.array([
+        [[3.3, 3.3], [0, 2], [0, 2], [1, 2], [3, 5]],
+        [[0, 2], [3.3, 3.3], [1, 2], [0, 1], [9, 11]],
+        [[0, 2], [0, 2], [3.3, 3.3], [0, 1], [11, 12]],
+        [[0, 2], [0, 2], [3.3, 3.3], [2, 5], [1, 11]],
+        [[-10, 8], [0, 1], [-8, 10], [-4, 2], [3, 4]],
+    ]))
+    b = iutils.to_iarray(np.array([
+        [-1, 2],
+        [-1, 10],
+        [-32, 2],
+        [1, 2],
+        [1, 15],
+    ]))
 
-    # x = LinearSystemSolver.gauss(m, b)
-    # print(x)
-    # print(LinearSystemSolver.jacobi(m, b, x))
-    # print(LinearSystemSolver.bruteforce(m, b, 'ii'))
+
+    # print(LinearSystemSolver.gauss(m, b))
+    print(LinearSystemSolver.bruteforce(m, b, 'ii'))
+    # print(LinearSystemSolver.ttcross(m, b))
+    # print(_CACHE_INFO)

@@ -4,7 +4,7 @@ import copy
 import numpy as np
 import numpy.linalg as la
 
-from tt import utils
+from ttlib import utils
 
 
 class TT:

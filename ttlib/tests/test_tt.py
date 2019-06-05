@@ -2,8 +2,8 @@
 import numpy as np
 import pytest
 
-from tt import TT
-from tt import utils
+from ttlib import TT
+from ttlib import utils
 
 
 TESTED_SHAPES = [

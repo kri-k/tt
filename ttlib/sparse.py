@@ -3,7 +3,7 @@ from collections import namedtuple
 
 import numpy as np
 
-from tt import TT
+from ttlib import TT
 
 
 class Peekorator:
@@ -31,33 +31,36 @@ class Peekorator:
         return tmp
 
 
-def _form_matrix(items: Peekorator, matrix_shape, cur_dim, cur_id):
+Item = namedtuple('Item', ['dims', 'val'])
+
+
+def _form_matrix(items: Peekorator, matrix_shape, prefix_indexes):
     m = np.zeros(matrix_shape)
-    end = False
     while items.peek is not None:
         item = items.peek
-        if item.dims[cur_dim] != cur_id:
+        if item.dims[:-2] != prefix_indexes:
             break
-        m[item.dims[cur_dim+1:]] = item.val
+        m[item.dims[-2:]] = item.val
         next(items)
     return m
 
 
-def _tt_sparse(items: Peekorator, shape, cur_dim, cur_id):
+def _tt_sparse(items: Peekorator, shape, cur_dim, prefix_indexes):
     if items.peek is None:
-        return TT.zeros(*shape[cur_dim+1:])
+        return TT.zeros(*shape[cur_dim:])
 
-    if items.peek.dims[cur_dim] != cur_id:
-        return TT.zeros(*shape[cur_dim+1:])
+    if items.peek.dims[:cur_dim] > prefix_indexes:
+        return TT.zeros(*shape[cur_dim:])
 
-    if cur_dim == len(shape) - 3:
-        return TT.tt_svd(
-            _form_matrix(items, shape[cur_dim+1:], cur_dim, cur_id))
+    assert items.peek.dims[:cur_dim] == prefix_indexes
+    if cur_dim == len(shape) - 2:
+        return TT.tt_svd(_form_matrix(items, shape[cur_dim:], prefix_indexes))
 
     result = None
-    for i in range(shape[cur_dim + 1]):
+    for i in range(shape[cur_dim]):
         result = TT.stack(
-            result, _tt_sparse(items, shape, cur_dim + 1, i))
+            result,
+            _tt_sparse(items, shape, cur_dim + 1, prefix_indexes + (i,)))
 
     return result
 
@@ -69,26 +72,24 @@ def tt_sparse(items: Peekorator, shape):
     if len(shape) == 2:
         m = np.zeros(shape)
         for item in items:
-            m[item.dims[cur_dim+1:]] = item.val
+            m[item.dims] = item.val
         return TT.tt_svd(m)
 
     result = None
     for i in range(shape[0]):
         result = TT.stack(
-            result, _tt_sparse(items, shape, 0, i))
+            result, _tt_sparse(items, shape, 1, (i,)))
     return result
-
-
-Item = namedtuple('Item', ['dims', 'val'])
 
 
 if __name__ == '__main__':
     import timeit
     from scipy import sparse
+    np.random.seed(1)
 
     shape = (2,) * 20
     m = np.product(shape[:-1])
-    sp = sparse.rand(m, shape[-1], 0.0001)
+    sp = sparse.random(m, shape[-1], 0.0001)
     t = sp.toarray().reshape(shape)
 
     print('{}/{}'.format(np.count_nonzero(t), t.size))
@@ -100,8 +101,7 @@ if __name__ == '__main__':
         if it[0]:
             items.append(Item(it.multi_index, it[0]))
         it.iternext()
-    print('len =', len(items))
 
     print('====Timings===')
-    print(timeit.timeit(lambda: TT.tt_svd(t), number=10))
-    print(timeit.timeit(lambda: tt_sparse(Peekorator(items), shape), number=10))
+    print(timeit.timeit(lambda: TT.tt_svd(t), number=1))
+    print(timeit.timeit(lambda: tt_sparse(Peekorator(items), shape), number=1))

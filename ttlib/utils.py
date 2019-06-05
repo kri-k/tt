@@ -41,3 +41,27 @@ def svd_decomposition(matrix, eps=1e-6):
 def singular_amount(matrix):
     _, s, _ = _svd(matrix)
     return np.prod([i**2 for i in s])
+
+
+def unravel_index(index, shape, order='C'):
+    """
+    numpy.unravel_index doesn't support
+    shapes with more than 32 dimensions
+    """
+    index = int(index)
+    if order == 'F':
+        shape = shape[::-1]
+
+    p = 1
+    for i in shape:
+        p *= i
+
+    multi_index = []
+    for i in range(len(shape)):
+        p //= shape[i]
+        multi_index.append(index // p)
+        index %= p
+
+    if order == 'F':
+        multi_index = multi_index[::-1]
+    return multi_index
